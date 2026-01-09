@@ -46,7 +46,7 @@ See [docs/CONSTITUTION.md](docs/CONSTITUTION.md) for full details.
 
 ```bash
 # Clone
-git clone https://github.com/yourusername/maat.git
+git clone https://github.com/manutej/maat-terminal.git
 cd maat
 
 # Build
@@ -91,7 +91,7 @@ claude:
 
 | Document | Purpose |
 |----------|---------|
-| [MAAT-SPEC.md](MAAT-SPEC.md) | Unified specification |
+| [MAAT-SPEC.md](docs/specs/MAAT-SPEC.md) | Unified specification |
 | [docs/CONSTITUTION.md](docs/CONSTITUTION.md) | 10 Commandments |
 | [specs/FUNCTIONAL-REQUIREMENTS.md](specs/FUNCTIONAL-REQUIREMENTS.md) | FR-001 to FR-010 |
 | [specs/ANTI-REQUIREMENTS.md](specs/ANTI-REQUIREMENTS.md) | What we refuse to build |
@@ -130,7 +130,7 @@ claude:
 - [ ] SQLite knowledge graph schema
 - [ ] 3-pane layout
 
-See [MAAT-SPEC.md](MAAT-SPEC.md) for full roadmap.
+See [MAAT-SPEC.md](docs/specs/MAAT-SPEC.md) for full roadmap.
 
 ## Contributing
 
