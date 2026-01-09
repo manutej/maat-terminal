@@ -1,0 +1,484 @@
+# MAAT Phase 1B: Mock Data Generator
+#
+# Purpose: Generate realistic mock graph data for TUI testing
+# Complexity: L1 (OBSERVE → GENERATE)
+# Pattern: Sequential composition (→)
+# Duration: 45-60 minutes
+# Token Budget: 1,600 tokens
+
+# Metadata
+metadata:
+  workflow_id: phase1-mock-data
+  phase: 1
+  subphase: B
+  version: 1.0
+  created: 2026-01-06
+  status: ready_to_execute
+
+  # Task description
+  task: "Create realistic mock fixtures for TUI testing"
+  description: |
+    Generate mock graph data (nodes + edges) for testing the TUI without
+    requiring real API integrations. Mock data should be realistic, covering
+    all NodeTypes and EdgeTypes, with proper hierarchical relationships.
+
+  # Complexity analysis
+  complexity:
+    level: L1
+    rationale: |
+      L1 is sufficient because:
+      - Domain model well-defined in specs
+      - Mock data generation is deterministic
+      - No API complexity or error handling
+      - No optimization needed
+      Simply gather domain knowledge → generate fixtures
+
+  # Budget estimates
+  budget:
+    tokens: 1600
+    breakdown:
+      gather: 600
+      generate: 1000
+    duration: "45-60 minutes"
+
+  # Quality targets
+  quality:
+    minimum: 0.75
+    target: 0.80
+    metrics:
+      - Covers all NodeTypes (Issue, PR, Commit, File, Project, Service)
+      - Covers all EdgeTypes (blocks, related, implements, modifies, mentions)
+      - 50-100 nodes with realistic relationships
+      - Hierarchical structure (projects → issues → PRs → commits)
+
+# Composition definition
+composition:
+  pattern: sequential
+  operators: ["→"]
+
+  # Step 1: Gather domain knowledge
+  step_1_gather:
+    block_id: knowledge-gatherer
+    foundation: knowledge-synthesis
+    function: OBSERVE
+    description: "Collect domain knowledge from MAAT specifications"
+
+    input:
+      type: Observable<Documents>
+      sources:
+        - docs/CONSTITUTION.md
+        - specs/FUNCTIONAL-REQUIREMENTS.md
+      focus:
+        - Entity types (Issue, PR, Commit, File)
+        - Relationship types (blocks, related, implements)
+        - Realistic data patterns
+        - Hierarchical structures
+
+    output:
+      type: Observable<DomainModel>
+      structure:
+        entities:
+          Issue:
+            attributes: [title, description, status, priority, labels, assignee]
+            statuses: [todo, in_progress, done, canceled]
+            priorities: [0-4]
+          PR:
+            attributes: [title, description, status, number, author, url]
+            statuses: [open, merged, closed]
+          Commit:
+            attributes: [message, author, hash, date]
+          File:
+            attributes: [path, language, lines]
+          Project:
+            attributes: [name, description, status]
+          Service:
+            attributes: [name, type, repo]
+
+        relationships:
+          blocks: Issue → Issue
+          related: Issue ↔ Issue
+          implements: PR → Issue
+          modifies: PR → File
+          mentions: Commit → Issue
+          parent_of: Issue → Issue (sub-issues)
+          owns: Project → Issue
+
+        constraints:
+          - Issues must have valid status
+          - PRs must reference valid issues
+          - Commits must have valid git hash format
+          - Files must have valid paths
+
+    agent_config:
+      prompt_template: |
+        Extract domain model from MAAT specifications:
+
+        Constitution: ${INPUT_1}
+        Functional Requirements: ${INPUT_2}
+
+        Extract:
+        1. All entity types with their attributes
+        2. All relationship types with their semantics
+        3. Realistic data patterns and constraints
+        4. Hierarchical structures (projects → issues → PRs → commits)
+
+        Provide structured domain model suitable for generating mock data.
+
+      budget: 600
+      timeout: 90
+
+    validation:
+      - Observable<DomainModel> contains all 6 NodeTypes
+      - Observable<DomainModel> contains all 8 EdgeTypes
+      - Attributes defined for each entity
+      - Relationships properly typed
+
+  # Step 2: Generate mock data
+  step_2_generate:
+    block_id: mock-generator
+    foundation: specification-driven
+    function: GENERATE
+    description: "Generate realistic mock graph data as Go code"
+
+    input:
+      type: Observable<DomainModel>
+      source: step_1_gather
+      additional_context:
+        - Generate 50-100 nodes
+        - Include all NodeTypes and EdgeTypes
+        - Create realistic hierarchies
+        - Use proper graph.Node and graph.Edge types
+
+    output:
+      type: Generated<MockData>
+      artifact: internal/tui/mock_data.go
+      structure:
+        package: tui
+        imports:
+          - encoding/json
+          - time
+          - github.com/manutej/maat-terminal/internal/graph
+        functions:
+          - GetMockGraph() ([]graph.Node, []graph.Edge)
+        data:
+          nodes:
+            - 5 Projects
+            - 20 Issues (mix of statuses)
+            - 15 PRs (some merged, some open)
+            - 30 Commits
+            - 25 Files
+            total: ~95 nodes
+          edges:
+            - 10 blocks relationships
+            - 15 related relationships
+            - 15 implements relationships
+            - 20 modifies relationships
+            - 25 mentions relationships
+            - 8 parent_of relationships
+            - 5 owns relationships
+            total: ~98 edges
+
+    agent_config:
+      prompt_template: |
+        Generate realistic mock graph data as Go code.
+
+        Domain model:
+        ${INPUT}
+
+        Generate internal/tui/mock_data.go with:
+
+        1. GetMockGraph() function that returns ([]graph.Node, []graph.Edge)
+
+        2. Nodes covering all types:
+           - 5 Projects (MAAT, Frontend, Backend, Infrastructure, Design)
+           - 20 Issues with varied statuses (todo, in_progress, done)
+           - 15 PRs (some merged to issues, some open)
+           - 30 Commits (referencing issues in messages)
+           - 25 Files (modified by PRs)
+
+        3. Edges creating realistic relationships:
+           - Issues blocking each other
+           - Issues related to similar work
+           - PRs implementing issues
+           - PRs modifying files
+           - Commits mentioning issues
+           - Projects owning issues
+
+        4. Realistic data:
+           - Issue titles like "Implement graph rendering", "Fix keyboard navigation"
+           - PR descriptions referencing issue numbers
+           - Commit messages with "#123" issue references
+           - File paths like "internal/tui/view.go"
+
+        5. Hierarchical structure:
+           Project → Issues → PRs → Commits → Files
+
+        Use proper JSON encoding for Node.Data and Edge.Metadata.
+        Follow MAAT's coding style and Constitutional principles.
+
+      budget: 1000
+      timeout: 150
+
+    validation:
+      - Generated<MockData> compiles without errors
+      - GetMockGraph() returns proper types
+      - All 6 NodeTypes represented
+      - All 8 EdgeTypes represented
+      - Realistic hierarchical relationships
+
+# Type flow validation
+type_flow:
+  description: "End-to-end type transformation"
+  flow:
+    - stage: input
+      type: Documents
+      files:
+        - docs/CONSTITUTION.md (~11 KB)
+        - specs/FUNCTIONAL-REQUIREMENTS.md (~465 lines)
+
+    - stage: gather
+      type: Observable<DomainModel>
+      content:
+        - 6 entity types with attributes
+        - 8 relationship types with semantics
+        - Constraints and validation rules
+
+    - stage: generate
+      type: Generated<MockData>
+      content:
+        - mock_data.go (~300 lines)
+        - 50-100 graph.Node instances
+        - 50-100 graph.Edge instances
+
+  validation:
+    - Type compatibility: Documents → Observable<DomainModel> ✓
+    - Type compatibility: Observable<DomainModel> → Generated<MockData> ✓
+    - No manual conversions required ✓
+
+# Output specification
+output:
+  primary_file: internal/tui/mock_data.go
+
+  file_structure: |
+    package tui
+
+    import (
+        "encoding/json"
+        "time"
+
+        "github.com/manutej/maat-terminal/internal/graph"
+    )
+
+    // GetMockGraph returns mock nodes and edges for testing
+    func GetMockGraph() ([]graph.Node, []graph.Edge) {
+        nodes := []graph.Node{
+            // Projects (5)
+            {
+                ID:   "project:1",
+                Type: graph.NodeTypeProject,
+                Source: "mock",
+                Data: mustJSON(map[string]interface{}{
+                    "name": "MAAT",
+                    "description": "Terminal knowledge graph workspace",
+                    "status": "active",
+                }),
+            },
+            // ... more projects
+
+            // Issues (20)
+            {
+                ID:   "issue:1",
+                Type: graph.NodeTypeIssue,
+                Source: "mock",
+                Data: mustJSON(map[string]interface{}{
+                    "title": "Implement graph rendering",
+                    "description": "Create Bubble Tea view for graph visualization",
+                    "status": "in_progress",
+                    "priority": 2,
+                    "labels": []string{"enhancement", "ui"},
+                }),
+            },
+            // ... more issues
+
+            // PRs (15)
+            {
+                ID:   "pr:101",
+                Type: graph.NodeTypePR,
+                Source: "mock",
+                Data: mustJSON(map[string]interface{}{
+                    "title": "Add graph rendering engine",
+                    "description": "Implements #1 with hierarchical tree layout",
+                    "status": "merged",
+                    "number": 101,
+                    "author": "dev",
+                }),
+            },
+            // ... more PRs
+
+            // Commits (30)
+            {
+                ID:   "commit:abc123",
+                Type: graph.NodeTypeCommit,
+                Source: "mock",
+                Data: mustJSON(map[string]interface{}{
+                    "message": "Fix #1: Update graph schema",
+                    "author": "dev",
+                    "hash": "abc123",
+                    "date": "2026-01-05",
+                }),
+            },
+            // ... more commits
+
+            // Files (25)
+            {
+                ID:   "file:1",
+                Type: graph.NodeTypeFile,
+                Source: "mock",
+                Data: mustJSON(map[string]interface{}{
+                    "path": "internal/tui/view.go",
+                    "language": "Go",
+                    "lines": 392,
+                }),
+            },
+            // ... more files
+        }
+
+        edges := []graph.Edge{
+            // Project owns issues
+            {ID: "edge:1", FromID: "project:1", ToID: "issue:1", Relation: graph.EdgeOwns},
+
+            // Issue blocks issue
+            {ID: "edge:2", FromID: "issue:2", ToID: "issue:1", Relation: graph.EdgeBlocks},
+
+            // PR implements issue
+            {ID: "edge:3", FromID: "pr:101", ToID: "issue:1", Relation: graph.EdgeImplements},
+
+            // PR modifies file
+            {ID: "edge:4", FromID: "pr:101", ToID: "file:1", Relation: graph.EdgeModifies},
+
+            // Commit mentions issue
+            {ID: "edge:5", FromID: "commit:abc123", ToID: "issue:1", Relation: graph.EdgeMentions},
+
+            // ... more edges
+        }
+
+        return nodes, edges
+    }
+
+    // mustJSON helper for inline JSON creation
+    func mustJSON(v interface{}) json.RawMessage {
+        data, err := json.Marshal(v)
+        if err != nil {
+            panic(err)
+        }
+        return data
+    }
+
+# Success criteria
+success_criteria:
+  functional:
+    - GetMockGraph() returns valid nodes and edges
+    - All 6 NodeTypes represented
+    - All 8 EdgeTypes represented
+    - Nodes have realistic titles and descriptions
+    - Edges create meaningful relationships
+
+  non_functional:
+    - Data is deterministic (same output every call)
+    - JSON encoding works correctly
+    - No runtime errors or panics
+    - Code is readable and maintainable
+
+  constitutional:
+    - Commandment #2: Each node has single responsibility
+    - Commandment #3: Text interface (JSON data)
+    - Commandment #9: Specification-first (this YAML)
+
+  testing:
+    - Can be imported by internal/tui/model.go
+    - TUI can render the mock graph
+    - Navigation works across mock nodes
+    - Detail pane displays mock data correctly
+
+# Validation gates
+validation:
+  pre_execution:
+    - Check: docs/CONSTITUTION.md exists
+    - Check: specs/FUNCTIONAL-REQUIREMENTS.md exists
+    - Check: internal/graph/schema.go defines NodeType and EdgeType
+
+  post_generation:
+    - Check: internal/tui/mock_data.go created
+    - Check: Code compiles (go build ./internal/tui)
+    - Check: GetMockGraph() callable
+    - Check: Returns non-empty nodes and edges
+
+  quality_gates:
+    minimum_quality: 0.75
+    target_quality: 0.80
+    metrics:
+      - node_count: ">= 50"
+      - edge_count: ">= 50"
+      - node_type_coverage: "100% (all 6 types)"
+      - edge_type_coverage: "100% (all 8 types)"
+      - compile_errors: 0
+
+# Execution instructions
+execution:
+  command: |
+    /ois-compose --workflow-plan workflows/phase1-mock-data.yaml \
+      --input-file "docs/CONSTITUTION.md specs/FUNCTIONAL-REQUIREMENTS.md" \
+      --output internal/tui/mock_data.go
+
+  prerequisites:
+    - Go 1.21+ installed
+    - internal/graph/schema.go exists (for NodeType, EdgeType)
+    - docs/CONSTITUTION.md exists
+    - specs/FUNCTIONAL-REQUIREMENTS.md exists
+
+  expected_duration: "45-60 minutes"
+
+  failure_recovery:
+    - If generation fails: Review domain extraction
+    - If compilation fails: Check graph package imports
+    - If data unrealistic: Re-run with refined prompts
+    - Max retries: 3
+    - Fallback: Manual mock data creation
+
+# Integration with Phase 1A
+integration:
+  depends_on: phase1-sqlite-store
+  dependency_type: parallel
+  note: |
+    Phase 1A and 1B can run in parallel - they don't depend on each other.
+    However, both must complete before Phase 1 validation:
+      1. Phase 1A generates store.go
+      2. Phase 1B generates mock_data.go
+      3. Update internal/tui/model.go to use mock data
+      4. Run ./maat to test TUI with mock graph
+
+# Traceability
+traceability:
+  constitutional_alignment:
+    - commandment_2: Single responsibility (each node type focused)
+    - commandment_3: Text interface (JSON data)
+    - commandment_9: Spec-first (this document)
+
+  functional_requirements:
+    - FR-001: Knowledge graph display (provides test data)
+    - FR-002: Keyboard navigation (enables testing without APIs)
+
+  architecture_decisions:
+    - ADR-001: Elm Architecture (mock data is immutable)
+    - ADR-003: Knowledge Graph Backend (tests graph operations)
+
+# Notes
+notes:
+  - Mock data enables Phase 2 (Navigation) without waiting for APIs (Phase 3)
+  - L1 complexity - straightforward generation from specs
+  - No API complexity, error handling, or optimization
+  - Deterministic output enables predictable testing
+  - Can be replaced with real data in Phase 3
+
+# Ready for execution
+ready_to_execute: true

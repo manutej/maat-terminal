@@ -1,0 +1,498 @@
+# Phase 2B: Keyboard Navigation Logic (L2 Workflow)
+#
+# Context: Phase 2A delivered hierarchical tree rendering of the knowledge graph.
+#          Phase 2B implements keyboard navigation to traverse the rendered graph.
+#
+# Complexity: L2 (OBSERVE → REASON → GENERATE)
+# Duration: 2-3 days (estimated)
+# Token Budget: 2,600 tokens (conservative)
+# Output: internal/tui/navigation.go (~350 lines)
+
+version: "1.0"
+name: "phase2-keyboard-navigation"
+description: "Implement keyboard navigation for MAAT knowledge graph traversal"
+
+metadata:
+  phase: "2B"
+  complexity_level: "L2"
+  dependencies:
+    - phase2-graph-rendering  # Must have working graph visualization
+  estimated_duration: "2-3 days"
+  token_budget: 2600
+  constitutional_alignment:
+    - "Commandment #1: Immutable Truth (navigation returns new Model)"
+    - "Commandment #4: Navigation Monopoly (Enter drills, Esc backs)"
+    - "Commandment #7: Composition Monopoly (build complex from simple moves)"
+    - "Commandment #9: Terminal Citizenship (vim-style hjkl)"
+
+# ============================================================================
+# STEP 1: OBSERVE - Analyze Navigation Requirements
+# ============================================================================
+steps:
+  - name: "observe-navigation-requirements"
+    type: "analyze"
+    complexity: "L1"
+    description: "Analyze TUI navigation requirements and current state"
+
+    inputs:
+      files_to_read:
+        - path: "internal/tui/model.go"
+          focus: "Model structure, focusedNode, activePane, navigation state"
+        - path: "internal/tui/update.go"
+          focus: "KeyMsg handling, existing keyboard bindings"
+        - path: "internal/tui/types.go"
+          focus: "DisplayNode, DisplayEdge structures"
+        - path: "internal/tui/render_graph.go"
+          focus: "treeLayout positions, how nodes are positioned"
+        - path: "internal/graph/schema.go"
+          focus: "Edge types, relationship semantics"
+        - path: "MAAT-SPEC.md"
+          focus: "Navigation requirements, keyboard bindings"
+
+      requirements:
+        primary:
+          - "hjkl navigation through graph nodes"
+          - "Tab cycles between panes (Graph, Main, Detail)"
+          - "Enter drills down into focused node"
+          - "Esc backs up navigation stack"
+          - "Navigation respects graph relationships"
+
+        constraints:
+          - "Must follow vim-style conventions (hjkl = left/down/up/right)"
+          - "Focus must stay within visible nodes"
+          - "Navigation must be deterministic (same key = same result)"
+          - "Must handle disconnected components (orphan nodes)"
+          - "Must handle graph cycles (avoid infinite loops)"
+
+        existing_state:
+          - "Model.focusedNode: string (current node ID)"
+          - "Model.activePane: PaneType (Graph|Main|Detail)"
+          - "Model.nodes: []DisplayNode (all nodes)"
+          - "Model.edges: []DisplayEdge (all relationships)"
+          - "treeLayout() positions nodes in 2D space"
+
+    outputs:
+      - name: "navigation-requirements-analysis"
+        description: "Comprehensive analysis of navigation needs"
+        format: "markdown"
+        content_includes:
+          - "Current keyboard bindings (what exists, what's missing)"
+          - "Graph structure analysis (connectivity, orphans, cycles)"
+          - "Node positioning system (how treeLayout arranges nodes)"
+          - "Edge semantics (what relationships mean for navigation)"
+          - "Focus management (how to track and update focus)"
+          - "Pane cycling (Tab behavior across 3 panes)"
+
+    validation:
+      - "All input files successfully read and analyzed"
+      - "Requirements extracted from MAAT-SPEC.md"
+      - "Current Model structure understood"
+      - "Graph layout algorithm understood"
+
+# ============================================================================
+# STEP 2: REASON - Design Navigation State Machine
+# ============================================================================
+  - name: "reason-navigation-patterns"
+    type: "design"
+    complexity: "L2"
+    description: "Design navigation state machine and movement logic"
+
+    depends_on:
+      - observe-navigation-requirements
+
+    reasoning_tasks:
+      algorithm_selection:
+        problem: "How to map hjkl keys to graph movements?"
+        options:
+          option_1:
+            name: "Spatial Navigation"
+            approach: "Use treeLayout positions, move to nearest node in direction"
+            pros:
+              - "Intuitive (hjkl matches visual layout)"
+              - "Works with tree rendering"
+              - "No graph structure needed"
+            cons:
+              - "May skip nodes if layout has gaps"
+              - "Doesn't follow relationships"
+            complexity: "O(n) per move (scan all nodes)"
+
+          option_2:
+            name: "Graph Traversal"
+            approach: "Follow edges, h/l = siblings, j/k = parent/children"
+            pros:
+              - "Respects graph structure"
+              - "Follows relationships semantically"
+              - "Predictable traversal"
+            cons:
+              - "Less intuitive (doesn't match visual)"
+              - "Fails on disconnected components"
+            complexity: "O(1) per move (adjacency lookup)"
+
+          option_3:
+            name: "Hybrid Approach"
+            approach: "Prefer graph edges, fallback to spatial when no edge"
+            pros:
+              - "Best of both worlds"
+              - "Handles orphans and cycles"
+              - "Intuitive + semantic"
+            cons:
+              - "More complex implementation"
+              - "Requires both systems"
+            complexity: "O(n) worst case, O(1) average"
+
+        decision_criteria:
+          - "Must feel natural (vim-style)"
+          - "Must handle 95 nodes efficiently"
+          - "Must support hierarchical structure"
+          - "Must handle orphan nodes"
+
+        recommended: "option_3"
+        justification: |
+          Hybrid approach provides best UX:
+          - j/k follows parent-child edges (hierarchical)
+          - h/l moves spatially (siblings at same level)
+          - Fallback to spatial handles orphans
+          - Respects "simple & working" philosophy
+
+      state_machine_design:
+        states:
+          - name: "Idle"
+            description: "No navigation in progress"
+          - name: "Navigating"
+            description: "Moving focus between nodes"
+          - name: "DrillDown"
+            description: "Entering focused node (stack push)"
+          - name: "BackOut"
+            description: "Returning to previous node (stack pop)"
+
+        events:
+          - key: "h"
+            action: "Move focus left (spatial)"
+          - key: "j"
+            action: "Move focus down (follow child edges or spatial)"
+          - key: "k"
+            action: "Move focus up (follow parent edges or spatial)"
+          - key: "l"
+            action: "Move focus right (spatial)"
+          - key: "Enter"
+            action: "Drill down into focused node"
+          - key: "Esc"
+            action: "Back out to previous node"
+          - key: "Tab"
+            action: "Cycle active pane"
+
+        transitions:
+          - from: "Idle"
+            event: "hjkl"
+            to: "Navigating"
+            action: "Update focusedNode, return new Model"
+          - from: "Idle"
+            event: "Enter"
+            to: "DrillDown"
+            action: "Push current to stack, filter view, return new Model"
+          - from: "Idle"
+            event: "Esc"
+            to: "BackOut"
+            action: "Pop from stack, restore view, return new Model"
+          - from: "Navigating"
+            event: "any"
+            to: "Idle"
+            action: "Complete navigation, render new focus"
+
+      edge_case_handling:
+        orphan_nodes:
+          problem: "Nodes with no edges (disconnected components)"
+          solution: "Spatial navigation only, treat as isolated group"
+
+        cycles:
+          problem: "A → B → C → A (infinite loops)"
+          solution: "Track visited in current navigation session, allow revisit but prevent immediate loops"
+
+        boundaries:
+          problem: "User presses 'j' at deepest node"
+          solution: "No-op, focus stays (vim-style hard boundaries)"
+
+        empty_graph:
+          problem: "No nodes to navigate"
+          solution: "Navigation disabled, show 'No nodes' message"
+
+    outputs:
+      - name: "navigation-design-document"
+        description: "Complete navigation system design"
+        format: "markdown"
+        content_includes:
+          - "State machine diagram (states, events, transitions)"
+          - "Algorithm selection (hybrid spatial + graph)"
+          - "Movement logic for each key (hjkl)"
+          - "Focus update rules"
+          - "Edge case handling strategies"
+          - "Integration points with existing Model/Update"
+
+    validation:
+      - "State machine is complete (covers all states and transitions)"
+      - "Algorithm selection justified with pros/cons"
+      - "Edge cases identified and solutions proposed"
+      - "Design aligns with Commandments #4, #7, #9"
+
+# ============================================================================
+# STEP 3: GENERATE - Implement Navigation Logic
+# ============================================================================
+  - name: "generate-navigation-implementation"
+    type: "implement"
+    complexity: "L2"
+    description: "Generate navigation.go with movement handlers"
+
+    depends_on:
+      - reason-navigation-patterns
+
+    implementation_spec:
+      file: "internal/tui/navigation.go"
+      estimated_lines: 350
+
+      structure:
+        imports:
+          - "math"  # For distance calculations
+
+        functions:
+          - name: "HandleNavigation"
+            signature: "func (m Model) HandleNavigation(key string) Model"
+            description: "Main navigation handler, routes key to specific handler"
+            returns: "New Model with updated focus"
+            pure: true
+
+          - name: "moveLeft"
+            signature: "func (m Model) moveLeft() Model"
+            description: "Move focus left (h key) - spatial navigation"
+            algorithm: "Find node with nearest X position to left of current"
+            returns: "Model with updated focusedNode"
+            pure: true
+
+          - name: "moveRight"
+            signature: "func (m Model) moveRight() Model"
+            description: "Move focus right (l key) - spatial navigation"
+            algorithm: "Find node with nearest X position to right of current"
+            returns: "Model with updated focusedNode"
+            pure: true
+
+          - name: "moveUp"
+            signature: "func (m Model) moveUp() Model"
+            description: "Move focus up (k key) - follow parent edges or spatial"
+            algorithm: |
+              1. Find edges where current node is ToID (incoming edges)
+              2. If parent edges exist, move to parent
+              3. Else, spatial: find node with nearest Y position above current
+            returns: "Model with updated focusedNode"
+            pure: true
+
+          - name: "moveDown"
+            signature: "func (m Model) moveDown() Model"
+            description: "Move focus down (j key) - follow child edges or spatial"
+            algorithm: |
+              1. Find edges where current node is FromID (outgoing edges)
+              2. If child edges exist, move to first child
+              3. Else, spatial: find node with nearest Y position below current
+            returns: "Model with updated focusedNode"
+            pure: true
+
+          - name: "drillDown"
+            signature: "func (m Model) drillDown() Model"
+            description: "Enter focused node (Enter key) - push to navigation stack"
+            algorithm: |
+              1. Push current focusedNode to navigationStack
+              2. Filter nodes/edges to show only focused node's subgraph
+              3. Set focus to first visible node in filtered view
+            returns: "Model with updated stack and filtered view"
+            pure: true
+
+          - name: "backOut"
+            signature: "func (m Model) backOut() Model"
+            description: "Return to previous node (Esc key) - pop navigation stack"
+            algorithm: |
+              1. Pop from navigationStack
+              2. Restore previous node/edge set
+              3. Set focus to popped node
+            returns: "Model with restored view"
+            pure: true
+
+          - name: "cyclePanes"
+            signature: "func (m Model) cyclePanes() Model"
+            description: "Cycle active pane (Tab key) - Graph → Main → Detail → Graph"
+            algorithm: "Simple enum cycling: (activePane + 1) % 3"
+            returns: "Model with updated activePane"
+            pure: true
+
+          - name: "findNearestNode"
+            signature: "func findNearestNode(current Point, nodes []DisplayNode, positions map[string]Point, direction Direction) string"
+            description: "Find nearest node in given direction from current position"
+            algorithm: |
+              1. Calculate positions using treeLayout (or use cached)
+              2. Filter nodes in direction (left/right/up/down)
+              3. Calculate Euclidean distance to each
+              4. Return ID of nearest node
+            returns: "Node ID of nearest node, or empty string if none"
+            pure: true
+
+          - name: "getNodePosition"
+            signature: "func getNodePosition(nodeID string, nodes []DisplayNode, edges []DisplayEdge) Point"
+            description: "Get position of node in tree layout"
+            algorithm: "Call treeLayout, lookup nodeID in result"
+            returns: "Point with X, Y coordinates"
+            pure: true
+
+          - name: "getParentNodes"
+            signature: "func getParentNodes(nodeID string, edges []DisplayEdge) []string"
+            description: "Get all parent nodes (incoming edges)"
+            returns: "Slice of parent node IDs"
+            pure: true
+
+          - name: "getChildNodes"
+            signature: "func getChildNodes(nodeID string, edges []DisplayEdge) []string"
+            description: "Get all child nodes (outgoing edges)"
+            returns: "Slice of child node IDs"
+            pure: true
+
+      types:
+        - name: "Direction"
+          kind: "enum"
+          values: ["Left", "Right", "Up", "Down"]
+
+      pure_functions:
+        - "All functions use value receivers"
+        - "No pointer mutations"
+        - "Model → Model transformations"
+        - "No side effects (no I/O, no goroutines)"
+
+      integration:
+        update_go_changes:
+          - "Add case for 'h', 'j', 'k', 'l' keys"
+          - "Call m.HandleNavigation(key)"
+          - "Return updated Model"
+
+        model_go_additions:
+          - "navigationStack []string (for drill down/back out)"
+          - "WithNavigationStack(stack []string) Model"
+
+    outputs:
+      - name: "navigation.go"
+        path: "internal/tui/navigation.go"
+        description: "Complete navigation implementation"
+        lines: "~350"
+
+      - name: "update.go modifications"
+        description: "Integration with keyboard event handling"
+        changes:
+          - "Add hjkl key cases in Update() function"
+          - "Call HandleNavigation() for movement keys"
+
+      - name: "model.go modifications"
+        description: "Add navigation stack to Model"
+        changes:
+          - "Add navigationStack field"
+          - "Add WithNavigationStack() method"
+
+    validation:
+      - "All functions compile without errors"
+      - "All functions use value receivers (pure)"
+      - "No pointer mutations anywhere"
+      - "Integrated with update.go keyboard handling"
+      - "Follows Commandments #1, #4, #7, #9"
+
+# ============================================================================
+# VALIDATION & SUCCESS CRITERIA
+# ============================================================================
+validation:
+  compilation:
+    - "go build ./internal/tui compiles successfully"
+    - "go build ./cmd/maat produces working binary"
+    - "No linter warnings or errors"
+
+  functional:
+    - "h key moves focus left (spatial)"
+    - "j key moves focus down (child edges or spatial)"
+    - "k key moves focus up (parent edges or spatial)"
+    - "l key moves focus right (spatial)"
+    - "Enter drills down into focused node"
+    - "Esc backs out to previous node"
+    - "Tab cycles panes: Graph → Main → Detail → Graph"
+    - "Focus stays within visible nodes (no out-of-bounds)"
+    - "Navigation handles orphan nodes gracefully"
+    - "Navigation handles cycles (no infinite loops)"
+
+  performance:
+    - "Navigation latency < 16ms (60 FPS)"
+    - "No memory leaks during extended navigation"
+    - "Spatial search completes in < 10ms for 95 nodes"
+
+  constitutional:
+    - "Commandment #1: All navigation returns new Model (immutable)"
+    - "Commandment #4: Enter drills down, Esc backs out (monopoly)"
+    - "Commandment #7: Complex navigation built from simple moves (composition)"
+    - "Commandment #9: vim-style hjkl (terminal citizenship)"
+
+success_criteria:
+  must_have:
+    - "✅ hjkl navigation functional in all directions"
+    - "✅ Enter/Esc drill down/back out work correctly"
+    - "✅ Tab cycles through all 3 panes"
+    - "✅ Focus updates visible in rendered graph"
+    - "✅ No crashes or panics during navigation"
+
+  should_have:
+    - "✅ Navigation feels responsive (< 16ms latency)"
+    - "✅ Spatial navigation finds nearest node accurately"
+    - "✅ Graph traversal follows edges correctly"
+    - "✅ Edge cases handled gracefully"
+
+  nice_to_have:
+    - "Focus wrapping at boundaries (optional)"
+    - "Visual breadcrumb trail showing navigation path"
+    - "Undo/redo navigation history"
+
+# ============================================================================
+# EXECUTION NOTES
+# ============================================================================
+execution:
+  workflow_type: "L2"
+  steps: 3
+  parallelization: "none (sequential: OBSERVE → REASON → GENERATE)"
+
+  token_usage:
+    step1_observe: 800  # Analyze requirements
+    step2_reason: 900   # Design state machine and algorithms
+    step3_generate: 900 # Implement navigation.go
+    total: 2600
+
+  timing:
+    day1: "OBSERVE + REASON (requirements analysis + design)"
+    day2: "GENERATE (implement navigation.go)"
+    day3: "Integration + testing (update.go integration, manual testing)"
+
+  dependencies:
+    required:
+      - "Phase 2A complete (graph rendering functional)"
+      - "treeLayout() available for position calculations"
+      - "Model.focusedNode, Model.nodes, Model.edges populated"
+
+    optional:
+      - "Phase 3 performance optimization (viewport culling)"
+
+philosophy:
+  simple_and_working:
+    - "Start with basic hjkl movement (L1-level simplicity)"
+    - "Add drill down/back out after basic movement works"
+    - "Profile before optimizing (measure < 16ms latency)"
+    - "Manual testing before automated tests"
+
+  complexity_gates:
+    - "L1 insufficient? YES - need state machine design"
+    - "L2 necessary? YES - multiple navigation approaches exist"
+    - "L2 sufficient? YES - don't need full L3+ orchestration"
+    - "Risk acceptable? YES - can fallback to simpler spatial-only"
+    - "Value justifiable? YES - core UX feature for knowledge graph"
+
+notes:
+  - "Navigation is symmetric to rendering: rendering is Model → View, navigation is Event → Model"
+  - "Hybrid spatial + graph approach balances intuitiveness with semantic correctness"
+  - "Pure functional design makes testing trivial (Model in → Model out)"
+  - "Elm Architecture naturally supports navigation (Update function returns new Model)"
+  - "Phase 2B completes basic TUI - Phase 3 will optimize performance"

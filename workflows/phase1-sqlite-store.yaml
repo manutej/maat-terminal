@@ -1,0 +1,378 @@
+# MAAT Phase 1A: SQLite Store Implementation
+#
+# Purpose: Generate SQLite-backed implementation of graph.Store interface
+# Complexity: L1 (OBSERVE → GENERATE)
+# Pattern: Sequential composition (→)
+# Duration: 60-90 minutes
+# Token Budget: 2,000 tokens
+
+# Metadata
+metadata:
+  workflow_id: phase1-sqlite-store
+  phase: 1
+  subphase: A
+  version: 1.0
+  created: 2026-01-06
+  status: ready_to_execute
+
+  # Task description
+  task: "Implement SQLite store from schema.go"
+  description: |
+    Generate complete SQLite-backed implementation of the graph.Store interface
+    defined in internal/graph/schema.go. Implementation must be pure functional
+    (Commandment #1), use SQLite for persistence, and include comprehensive
+    error handling.
+
+  # Complexity analysis
+  complexity:
+    level: L1
+    rationale: |
+      L1 is sufficient because:
+      - Schema already exists (well-defined input)
+      - CRUD operations are standard patterns
+      - No architecture decisions needed
+      - No optimization required yet
+      Simply observe schema → generate implementation
+
+  # Budget estimates
+  budget:
+    tokens: 2000
+    breakdown:
+      observe: 800
+      generate: 1200
+    duration: "60-90 minutes"
+
+  # Quality targets
+  quality:
+    minimum: 0.75
+    target: 0.80
+    metrics:
+      - All Store interface methods implemented
+      - Pure functions (no global state)
+      - Comprehensive error handling
+      - Tests pass
+
+# Composition definition
+composition:
+  pattern: sequential
+  operators: ["→"]
+
+  # Step 1: Observe schema structure
+  step_1_observe:
+    block_id: structure-observer
+    foundation: systems-thinking
+    function: OBSERVE
+    description: "Inspect graph schema and extract types, interfaces, operations"
+
+    input:
+      type: Observable<Code>
+      source: internal/graph/schema.go
+      focus:
+        - Node struct
+        - Edge struct
+        - NodeType enum
+        - EdgeType enum
+        - Store interface definition
+        - CRUD operation signatures
+
+    output:
+      type: Observable<Schema>
+      structure:
+        types:
+          - Node: { id, type, source, data, metadata }
+          - Edge: { id, from_id, to_id, relation, metadata }
+          - NodeType: enum of 6 types
+          - EdgeType: enum of 8 types
+        interface:
+          - Store: 5 CRUD methods
+        operations:
+          - AddNode(node Node) error
+          - AddEdge(edge Edge) error
+          - GetNode(id string) (Node, error)
+          - GetEdges(fromID string) ([]Edge, error)
+          - GetNeighbors(nodeID string) ([]Node, error)
+
+    agent_config:
+      prompt_template: |
+        Analyze the following Go code and extract the complete structure:
+
+        File: internal/graph/schema.go
+
+        ${INPUT}
+
+        Extract:
+        1. All type definitions (structs, enums)
+        2. The Store interface with all method signatures
+        3. Any constraints or validation rules
+        4. Database schema requirements
+
+        Provide structured output describing the schema architecture.
+
+      budget: 800
+      timeout: 120
+
+    validation:
+      - Observable<Schema> contains all Node/Edge types
+      - Store interface fully extracted
+      - Method signatures include error returns
+
+  # Step 2: Generate SQLite implementation
+  step_2_generate:
+    block_id: type-generator
+    foundation: category-theory
+    function: GENERATE
+    description: "Generate type-safe SQLite implementation of Store interface"
+
+    input:
+      type: Observable<Schema>
+      source: step_1_observe
+      additional_context:
+        - Use github.com/mattn/go-sqlite3 driver
+        - Follow Commandment #1 (Immutable Truth)
+        - Pure functions only
+        - Comprehensive error handling
+
+    output:
+      type: Generated<Implementation>
+      artifacts:
+        primary: internal/graph/store.go
+        test: internal/graph/store_test.go
+      structure:
+        package: graph
+        imports:
+          - database/sql
+          - encoding/json
+          - fmt
+          - github.com/mattn/go-sqlite3
+        types:
+          - Store interface (reference)
+          - sqliteStore struct
+        functions:
+          - NewStore(dbPath string) (Store, error)
+          - AddNode(node Node) error
+          - AddEdge(edge Edge) error
+          - GetNode(id string) (Node, error)
+          - GetEdges(fromID string) ([]Edge, error)
+          - GetNeighbors(nodeID string) ([]Node, error)
+        helpers:
+          - createTables() error
+          - nodeToRow(Node) ([]interface{})
+          - rowToNode(sql.Rows) (Node, error)
+
+    agent_config:
+      prompt_template: |
+        Generate a complete SQLite-backed implementation of the Store interface.
+
+        Schema extracted:
+        ${INPUT}
+
+        Requirements:
+        1. Implement all Store interface methods
+        2. Use SQLite with mattn/go-sqlite3 driver
+        3. Pure functions - no global state (Commandment #1)
+        4. Comprehensive error handling
+        5. JSON encoding for Node.Data and Edge.Metadata
+        6. Table creation with migrations
+        7. Proper SQL injection prevention (prepared statements)
+        8. Transaction support for batch operations
+
+        Generate:
+        - internal/graph/store.go (complete implementation)
+        - internal/graph/store_test.go (table-driven tests)
+
+        Follow Go best practices and MAAT's Constitutional principles.
+
+      budget: 1200
+      timeout: 180
+
+    validation:
+      - Generated<Implementation> compiles without errors
+      - All Store interface methods present
+      - No global mutable state
+      - Tests included
+
+# Type flow validation
+type_flow:
+  description: "End-to-end type transformation"
+  flow:
+    - stage: input
+      type: Code
+      file: internal/graph/schema.go
+      size: ~170 lines
+
+    - stage: observe
+      type: Observable<Schema>
+      content:
+        - Node/Edge type definitions
+        - Store interface
+        - Method signatures
+
+    - stage: generate
+      type: Generated<Implementation>
+      content:
+        - store.go (500 lines estimated)
+        - store_test.go (300 lines estimated)
+
+  validation:
+    - Type compatibility: Code → Observable<Schema> ✓
+    - Type compatibility: Observable<Schema> → Generated<Implementation> ✓
+    - No manual conversions required ✓
+
+# Output specification
+output:
+  primary_file: internal/graph/store_generated.go
+  additional_files:
+    - internal/graph/store_test.go
+
+  file_structure: |
+    package graph
+
+    import (
+        "database/sql"
+        "encoding/json"
+        "fmt"
+        _ "github.com/mattn/go-sqlite3"
+    )
+
+    // sqliteStore implements the Store interface using SQLite
+    type sqliteStore struct {
+        db *sql.DB
+    }
+
+    // NewStore creates a new SQLite-backed store
+    func NewStore(dbPath string) (Store, error) { ... }
+
+    // AddNode inserts a node into the graph
+    func (s *sqliteStore) AddNode(node Node) error { ... }
+
+    // AddEdge inserts an edge into the graph
+    func (s *sqliteStore) AddEdge(edge Edge) error { ... }
+
+    // GetNode retrieves a node by ID
+    func (s *sqliteStore) GetNode(id string) (Node, error) { ... }
+
+    // GetEdges retrieves all edges from a node
+    func (s *sqliteStore) GetEdges(fromID string) ([]Edge, error) { ... }
+
+    // GetNeighbors retrieves all neighboring nodes
+    func (s *sqliteStore) GetNeighbors(nodeID string) ([]Node, error) { ... }
+
+    // Helper functions...
+
+  schema_sql: |
+    CREATE TABLE IF NOT EXISTS nodes (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        source TEXT NOT NULL,
+        data JSON NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS edges (
+        id TEXT PRIMARY KEY,
+        from_id TEXT NOT NULL REFERENCES nodes(id),
+        to_id TEXT NOT NULL REFERENCES nodes(id),
+        relation TEXT NOT NULL,
+        metadata JSON
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_edges_from ON edges(from_id);
+    CREATE INDEX IF NOT EXISTS idx_edges_to ON edges(to_id);
+
+# Success criteria
+success_criteria:
+  functional:
+    - All Store interface methods implemented
+    - SQLite database connection established
+    - Tables created with proper schema
+    - Nodes and edges can be inserted
+    - Queries return correct results
+
+  non_functional:
+    - Pure functions (no pointer receivers that mutate)
+    - Error handling for all failure cases
+    - Prepared statements prevent SQL injection
+    - JSON encoding/decoding for flexible data
+
+  constitutional:
+    - Commandment #1: All state in Model, no globals
+    - Commandment #5: Controlled effects (db operations via methods)
+    - Commandment #9: Specification-first (this YAML spec exists)
+
+  testing:
+    - AddNode test: Insert and retrieve
+    - AddEdge test: Insert edge between nodes
+    - GetNode test: Retrieve by ID
+    - GetEdges test: Retrieve node's edges
+    - GetNeighbors test: Traverse graph
+    - Error cases: Not found, invalid input, db errors
+
+# Validation gates
+validation:
+  pre_execution:
+    - Check: internal/graph/schema.go exists
+    - Check: Store interface defined in schema.go
+    - Check: go.mod includes mattn/go-sqlite3
+
+  post_generation:
+    - Check: internal/graph/store.go created
+    - Check: Code compiles (go build ./internal/graph)
+    - Check: Tests exist (store_test.go)
+    - Check: Tests pass (go test ./internal/graph)
+
+  quality_gates:
+    minimum_quality: 0.75
+    target_quality: 0.80
+    metrics:
+      - test_coverage: ">= 70%"
+      - compile_errors: 0
+      - linter_errors: 0
+      - functional_tests_passing: "100%"
+
+# Execution instructions
+execution:
+  command: |
+    /ois-compose --workflow-plan workflows/phase1-sqlite-store.yaml \
+      --input-file internal/graph/schema.go \
+      --output internal/graph/store_generated.go \
+      --verbose
+
+  prerequisites:
+    - Go 1.21+ installed
+    - mattn/go-sqlite3 in go.mod
+    - internal/graph/schema.go exists
+
+  expected_duration: "60-90 minutes"
+
+  failure_recovery:
+    - If generation fails: Review schema extraction
+    - If compilation fails: Check type compatibility
+    - If tests fail: Review SQL queries
+    - Max retries: 3
+    - Fallback: Manual implementation with generated code as reference
+
+# Traceability
+traceability:
+  constitutional_alignment:
+    - commandment_1: Pure functions, no globals
+    - commandment_5: Effects isolated in Store methods
+    - commandment_9: Spec-first (this document)
+
+  functional_requirements:
+    - FR-001: Knowledge graph storage (backend for graph display)
+    - FR-004: State management (SQLite persistence)
+
+  architecture_decisions:
+    - ADR-001: Elm Architecture (Store is pure, no side effects in Update)
+    - ADR-003: SQLite Knowledge Graph Backend (this implements it)
+
+# Notes
+notes:
+  - This is L1 complexity - simplest possible approach
+  - No optimization yet (that's Phase 5, L5 complexity)
+  - Pure observation → generation, no reasoning needed
+  - Schema already exists - no architecture decisions
+  - CRUD is well-understood pattern - no novel approaches
+
+# Ready for execution
+ready_to_execute: true

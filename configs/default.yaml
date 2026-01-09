@@ -1,0 +1,54 @@
+# MAAT Configuration
+# All settings follow Commandment #9: Terminal Citizenship
+
+app:
+  name: "MAAT"
+  version: "0.1.0"
+  log_level: "info"
+
+# Database configuration (Phase 2)
+database:
+  path: "~/.maat/graph.db"
+  max_connections: 10
+
+# Theme (dark mode only)
+theme:
+  primary: "#5f87ff"      # Bright blue
+  secondary: "#87d75f"    # Bright green
+  error: "#ff5f5f"        # Bright red
+  warning: "#ffaf00"      # Yellow
+  background: "#1c1c1c"   # Dark gray
+  foreground: "#d0d0d0"   # Light gray
+  border: "#4e4e4e"       # Medium gray
+
+# Keybindings (Commandment #4: Navigation Monopoly)
+keys:
+  quit: ["ctrl+c", "q"]
+  enter: ["enter"]
+  back: ["esc"]
+  up: ["up", "k"]
+  down: ["down", "j"]
+  refresh: ["r"]
+  ai: ["ctrl+a"]          # Commandment #6: Human Contact
+  help: ["?"]
+
+# External integrations (Phase 2+)
+integrations:
+  linear:
+    enabled: false
+    api_key_env: "LINEAR_API_KEY"
+    sync_interval: 300    # 5 minutes
+
+  github:
+    enabled: false
+    token_env: "GITHUB_TOKEN"
+    default_repo: ""
+
+  claude:
+    enabled: false
+    mcp_endpoint: "http://localhost:3000"
+
+# Confirmations (Commandment #10: Sovereignty)
+confirmations:
+  require_for_writes: true
+  timeout_seconds: 30

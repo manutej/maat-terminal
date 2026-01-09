@@ -1,0 +1,280 @@
+# Phase 2A: Graph Rendering Engine
+# Complexity: L2 (OBSERVE → REASON → GENERATE)
+# Budget: 4,500 tokens | Duration: 3-5 days
+
+metadata:
+  task: "Implement graph rendering with hierarchical tree layout"
+  complexity: L2
+  budget: 4500
+  duration: "3-5 days"
+  output_file: "internal/tui/render_graph.go"
+  estimated_lines: 600
+
+composition:
+  pattern: sequential
+  operators: ["→"]  # Sequential composition only
+
+  step_1_observe:
+    block_id: structure-observer
+    foundation: systems-thinking
+    function: OBSERVE
+    description: "Analyze TUI layout requirements and graph structure"
+    input:
+      - internal/tui/model.go
+      - internal/tui/view.go
+      - internal/tui/types.go
+      - internal/graph/schema.go
+      - MAAT-SPEC.md (3-pane layout requirements)
+    output:
+      type: Observable<Requirements>
+      content:
+        - TUI dimensions (width, height)
+        - Pane layout (3-column: graph | main | detail)
+        - Graph viewport size
+        - Node display requirements
+        - Edge rendering needs
+        - Focus highlighting spec
+    budget: 800
+    validation:
+      - All input files read successfully
+      - Requirements extracted for viewport size
+      - Node/edge types understood
+      - 3-pane layout constraints documented
+
+  step_2_reason:
+    block_id: algorithm-reasoner
+    foundation: reasoning
+    function: REASON
+    description: "Select optimal layout algorithm for 95-node graph"
+    input: Observable<Requirements> from step_1
+    output:
+      type: Reasoning<Algorithm>
+      content:
+        - Algorithm selection (tree layout recommended)
+        - Justification (hierarchical structure, < 100 nodes)
+        - Performance characteristics (O(n) positioning)
+        - Rendering strategy (top-down traversal)
+        - Edge routing approach (orthogonal lines)
+    reasoning_process:
+      - Analyze graph properties (hierarchical, 95 nodes, 67 edges)
+      - Consider algorithms: tree layout, force-directed, hierarchical
+      - Evaluate constraints: terminal size (80x24 typical), ASCII rendering
+      - Select tree layout: best for hierarchical + ASCII + performance
+      - Design positioning: breadth-first tree traversal
+    budget: 1500
+    validation:
+      - Algorithm selected with clear justification
+      - Complexity analysis provided (time/space)
+      - Rendering strategy defined
+      - Constraint satisfaction verified
+
+  step_3_generate:
+    block_id: render-generator
+    foundation: code-generation
+    function: GENERATE
+    description: "Generate graph rendering code with tree layout"
+    input: Reasoning<Algorithm> from step_2
+    output:
+      type: Generated<Code>
+      file: internal/tui/render_graph.go
+      content:
+        - RenderGraph(m Model) string function
+        - treeLayout(nodes []DisplayNode, edges []DisplayEdge) (positions map[string]Point)
+        - drawNode(node DisplayNode, focused bool) string
+        - drawEdge(from, to Point, relation EdgeType) string
+        - highlightFocusedNode(nodeID string, rendered string) string
+      lines: ~600
+    implementation_spec:
+      # Core rendering function
+      - RenderGraph signature: "func RenderGraph(m Model) string"
+      - Input: Model with nodes, edges, focusedNode
+      - Output: Fully rendered ASCII graph as string
+
+      # Layout algorithm
+      - treeLayout implements breadth-first positioning
+      - Root node: first node in nodes list (or focusedNode if set)
+      - Positioning: level-by-level, left-to-right
+      - Spacing: 2 chars horizontal, 1 line vertical
+
+      # Node rendering
+      - drawNode creates bordered box: ┌─────┐ │ Title │ └─────┘
+      - Node width: title length + 4 (2 for borders, 2 for padding)
+      - Focused node: bold + color (lipgloss styling)
+      - Status indicator: prefix icon (✓ done, ○ todo, ◐ in progress)
+
+      # Edge rendering
+      - drawEdge creates ASCII lines: │ ─ ┌ ┐ └ ┘
+      - Routing: orthogonal (horizontal + vertical segments)
+      - Direction: parent → child (top to bottom)
+      - Label: relation type at midpoint
+
+      # Viewport management
+      - Calculate bounds from node positions
+      - Clip to viewport dimensions (m.width, m.height)
+      - Scroll offsets if graph larger than viewport
+
+    budget: 2200
+    validation:
+      - File created: internal/tui/render_graph.go
+      - All functions implemented with correct signatures
+      - Compiles without errors: "go build ./internal/tui"
+      - Pure functions (no pointer mutations, value receivers)
+      - Uses lipgloss for styling (already imported)
+      - Respects Model dimensions (m.width, m.height)
+
+success_criteria:
+  functional:
+    - Graph renders with all nodes visible
+    - Focused node highlighted (bold + color)
+    - Edges connect correct nodes
+    - ASCII box drawing clean and aligned
+    - Viewport respects terminal size
+
+  non_functional:
+    - Render time < 100ms for 95 nodes
+    - Memory efficient (no large string allocations)
+    - Pure functions (Model → string, no side effects)
+    - Terminal compatible (works in xterm, iTerm2, alacritty)
+
+  constitutional:
+    - Commandment #1: Immutable Truth (pure rendering)
+    - Commandment #2: Graph Supremacy (renders from graph.Node/Edge)
+    - Commandment #3: Text Interface (ASCII/Unicode output)
+    - Commandment #8: Async Purity (no goroutines, just functions)
+
+quality_gates:
+  pre_execution:
+    - Phase 1 complete (SQLite store + mock data)
+    - TUI initializes successfully
+    - GraphDataLoadedMsg handler working
+    - Model has nodes and edges populated
+
+  post_generation:
+    - Code compiles: "go build ./internal/tui"
+    - No linter warnings: "golangci-lint run internal/tui/render_graph.go"
+    - Functions have correct signatures (value receivers, pure)
+    - Lipgloss imports present
+
+  integration:
+    - Integrate RenderGraph() into view.go ViewGraph case
+    - Build binary: "go build ./cmd/maat"
+    - Manual test: "./maat" shows rendered graph
+    - Verify focused node highlighting works
+
+example_output:
+  # Expected render for 3 nodes + 2 edges:
+  ascii_art: |
+    ┌──────────────────┐
+    │ ✓ Issue #3       │  (focused, bold, green)
+    │ SQLite Backend   │
+    └──────────────────┘
+            │
+            │ implements
+            ↓
+    ┌──────────────────┐
+    │ ○ PR #101        │
+    │ Add SQLite Store │
+    └──────────────────┘
+            │
+            │ modifies
+            ↓
+    ┌──────────────────┐
+    │ File: store.go   │
+    │ 479 lines        │
+    └──────────────────┘
+
+dependencies:
+  internal:
+    - graph.Node, graph.Edge (data types)
+    - DisplayNode, DisplayEdge (TUI types)
+    - Model.nodes, Model.edges (data source)
+    - Model.focusedNode (highlight target)
+    - Model.width, Model.height (viewport size)
+
+  external:
+    - github.com/charmbracelet/lipgloss (styling)
+    - Standard library: strings, fmt
+
+testing_approach:
+  manual:
+    - Run "./maat" and verify graph appears
+    - Check focused node is highlighted
+    - Verify edges connect correct nodes
+    - Test with different terminal sizes
+
+  automated: # Optional for Phase 2
+    - Unit tests for treeLayout (node positioning)
+    - Unit tests for drawNode (box rendering)
+    - Unit tests for drawEdge (line rendering)
+
+rollback_plan:
+  if_compilation_fails:
+    - Review generated code for syntax errors
+    - Fix import statements
+    - Verify type compatibility with Model
+
+  if_rendering_broken:
+    - Fall back to simple list view (no tree layout)
+    - Render nodes as text list: "- [Type] Title (Status)"
+    - Defer complex rendering to Phase 2B iteration
+
+complexity_justification:
+  why_l2:
+    - Multiple layout algorithms exist (tree, force-directed, circular)
+    - Must reason about performance vs readability tradeoff
+    - Must select algorithm based on graph properties
+    - ASCII rendering strategy needs design decisions
+
+  l1_insufficient:
+    - Simple OBSERVE → GENERATE can't choose algorithm
+    - Need reasoning step to justify layout selection
+    - Pattern matching alone can't optimize positioning
+
+  l3_unnecessary:
+    - No reflection needed (structure known)
+    - No optimization iteration (first solution acceptable)
+    - No quality improvement loop required
+
+---
+
+# Execution Notes
+
+## Agent Invocation (If Using OIS)
+```bash
+/ois-compose --workflow phase2-graph-rendering.yaml
+```
+
+## Manual Execution Steps
+1. **Step 1**: Read all input files, extract requirements
+2. **Step 2**: Analyze graph properties, select tree layout algorithm
+3. **Step 3**: Generate render_graph.go with implementation
+4. **Step 4**: Integrate into view.go
+5. **Step 5**: Build and test
+
+## Validation Commands
+```bash
+# Compile check
+go build ./internal/tui
+
+# Lint check
+golangci-lint run internal/tui/render_graph.go
+
+# Full build
+go build ./cmd/maat
+
+# Manual test
+./maat  # Press Ctrl+C to exit
+```
+
+## Expected Outcome
+- **File**: internal/tui/render_graph.go (~600 lines)
+- **Functions**: RenderGraph, treeLayout, drawNode, drawEdge
+- **Integration**: Hooked into view.go ViewGraph case
+- **Result**: Running "./maat" displays rendered graph with focused highlighting
+
+---
+
+**Status**: Ready to Execute
+**Complexity**: L2 (OBSERVE → REASON → GENERATE)
+**Budget**: 4,500 tokens
+**Duration**: 3-5 days
